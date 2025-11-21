@@ -1,15 +1,12 @@
 import mongoose from 'mongoose';
 
-const MongoDB_URI = process.env.MONGODB_URI;
-if (!MongoDB_URI) {
-    throw new Error('MONGODB_URI is not defined in environment variables');
-}
 
 export interface IGroup {
     name: string;
     description?: string;
     members: string[];
     createdAt: Date;
+    imageUrl?: string;
 }
 
 const groupSchema = new mongoose.Schema<IGroup>({
@@ -17,7 +14,22 @@ const groupSchema = new mongoose.Schema<IGroup>({
     description: { type: String },
     members: { type: [String], required: true },
     createdAt: { type: Date, default: Date.now },
+    imageUrl: { type: String }
 });
+
+export async function createGroup(name: string, description: string, members: string[], imageUrl: string) {
+
+    const group = new Group({
+        name,
+        description,
+        members,
+        imageUrl: 'https://example.com/image.png'
+    });
+
+    await group.save();
+    console.log('Group created:', group);
+    return group;
+}
 
 export const Group = mongoose.model<IGroup>('Group', groupSchema);
 
