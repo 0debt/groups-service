@@ -18,7 +18,7 @@ async function startServer() {
     async fetch(req) {
       const url = new URL(req.url);
 
-      if (url.pathname === "/groups" && req.method === "POST") {
+      if (url.pathname === "/groups/creation" && req.method === "POST") {
         try {
           const body = await req.json()
           const { name, owner, description, members } = body
@@ -35,26 +35,44 @@ async function startServer() {
           })
 
         }
+      }
 
-        try {
+      if (url.pathname === "/groups/deletion" && req.method === "POST") {
+        try{
           const body = await req.json()
-          const {groupId} = body
+          const { groupId } = body
 
-          const group = await deleteGroup(groupId)
-          return new Response(JSON.stringify(group), {
+          const deletedGroup = await deleteGroup(groupId)
+          return new Response(JSON.stringify(deletedGroup), {
             headers: { "Content-Type": "application/json" },
           });
-        }catch (error) {
-          return new Response(JSON.stringify({ error: 'Failed to delete group' }), {
+        } catch (error) {
+          return new Response(JSON.stringify({ error: 'Failed to create group' }), {
             status: 400,
             headers: { 'Content-Type': 'application/json' },
           })
         }
-
-
       }
 
-      if (url.pathname == "/groups" && req.method === "GET") {
+      if (url.pathname === "/groups/updateMember" && req.method === "POST") {
+        try{
+          const body = await req.json()
+          const { groupId, memberToAdd, memberToRemove} = body
+
+          const updatedGroup = await updateGroupMembers(groupId, memberToAdd, memberToRemove)
+          return new Response(JSON.stringify(updatedGroup), {
+            headers: { "Content-Type": "application/json" },
+          });
+        } catch (error) {
+          return new Response(JSON.stringify({ error: 'Failed to create group' }), {
+            status: 400,
+            headers: { 'Content-Type': 'application/json' },
+          })
+        }
+      }
+      
+
+      if (url.pathname == "/groups/visualization" && req.method === "GET") {
         try {
           const searchParams = new URL(req.url).searchParams;
           const name = searchParams.get("name") || ""
@@ -72,6 +90,7 @@ async function startServer() {
         }
       }
 
+      
 
       return new Response("Not Found", { status: 404 });
     },
@@ -101,6 +120,10 @@ export default app
 
 
 function deleteGroup(groupId: any) {
+  throw new Error('Function not implemented.')
+}
+
+function updateGroupMembers(groupId: any, memberToAdd: any, memberToRemove: any) {
   throw new Error('Function not implemented.')
 }
 
