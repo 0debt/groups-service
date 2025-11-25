@@ -47,7 +47,7 @@ async function startServer() {
             headers: { "Content-Type": "application/json" },
           });
         } catch (error) {
-          return new Response(JSON.stringify({ error: 'Failed to create group' }), {
+          return new Response(JSON.stringify({ error: 'Failed to delete group' }), {
             status: 400,
             headers: { 'Content-Type': 'application/json' },
           })
@@ -64,13 +64,28 @@ async function startServer() {
             headers: { "Content-Type": "application/json" },
           });
         } catch (error) {
-          return new Response(JSON.stringify({ error: 'Failed to create group' }), {
+          return new Response(JSON.stringify({ error: 'Failed to add or delete a member of a  group' }), {
             status: 400,
             headers: { 'Content-Type': 'application/json' },
           })
         }
       }
-      
+      if (url.pathname === "/groups/updateDetails" && req.method === "POST") {
+        try{
+          const body = await req.json()
+          const { groupId, name, description} = body
+
+          const updatedGroup = await updateGroupDetails(groupId, name, description)
+          return new Response(JSON.stringify(updatedGroup), {
+            headers: { "Content-Type": "application/json" },
+          });
+        }catch (error) {
+          return new Response(JSON.stringify({ error: 'Failed to modify a detail of a  group' }), {
+            status: 400,
+            headers: { 'Content-Type': 'application/json' },
+          })
+        }
+      }
 
       if (url.pathname == "/groups/visualization" && req.method === "GET") {
         try {
@@ -124,6 +139,10 @@ function deleteGroup(groupId: any) {
 }
 
 function updateGroupMembers(groupId: any, memberToAdd: any, memberToRemove: any) {
+  throw new Error('Function not implemented.')
+}
+
+function updateGroupDetails(groupId: any, name: any, description: any) {
   throw new Error('Function not implemented.')
 }
 
