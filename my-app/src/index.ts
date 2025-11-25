@@ -1,10 +1,11 @@
 import { Hono } from 'hono'
 import mongoose, { connect } from 'mongoose'
-import { Group } from './models/Group'
+import { Group, ReserachchByName } from './models/Group'
 import { serve } from "bun"
 import { connectDB } from './db/db'
 import { createGroup } from './models/Group'
-
+import { requestPhoto } from './models/Group'
+import './models/Group'
 
 const app = new Hono()
 
@@ -20,9 +21,9 @@ async function startServer() {
       if (url.pathname === "/groups" && req.method === "POST") {
         try {
           const body = await req.json()
-          const { name, description, members, createdAt, imageUrl } = body
+          const { name, owner, description, members } = body
 
-          const group = createGroup(name, description, members, imageUrl)
+          const group = await createGroup(name, owner, description, members)
           return new Response(JSON.stringify(group), {
             headers: { "Content-Type": "application/json" },
           });
@@ -33,6 +34,24 @@ async function startServer() {
             headers: { 'Content-Type': 'application/json' },
           })
 
+        }
+      }
+
+      if (url.pathname == "/groups" && req.method === "GET") {
+        try {
+          const searchParams = new URL(req.url).searchParams;
+          const name = searchParams.get("name") || ""
+
+          const groups = await ReserachchByName(name)
+          return new Response(JSON.stringify(groups), {
+            headers: { "Content-Type": "application/json" },
+          });
+
+        } catch (error) {
+          return new Response(JSON.stringify({ error: 'Failed to get groups' }), {
+            status: 400,
+            headers: { 'Content-Type': 'application/json' },
+          })
         }
       }
 
