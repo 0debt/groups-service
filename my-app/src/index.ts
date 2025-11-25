@@ -35,6 +35,23 @@ async function startServer() {
           })
 
         }
+
+        try {
+          const body = await req.json()
+          const {groupId} = body
+
+          const group = await deleteGroup(groupId)
+          return new Response(JSON.stringify(group), {
+            headers: { "Content-Type": "application/json" },
+          });
+        }catch (error) {
+          return new Response(JSON.stringify({ error: 'Failed to delete group' }), {
+            status: 400,
+            headers: { 'Content-Type': 'application/json' },
+          })
+        }
+
+
       }
 
       if (url.pathname == "/groups" && req.method === "GET") {
@@ -82,4 +99,8 @@ export default app
 
 
 
+
+function deleteGroup(groupId: any) {
+  throw new Error('Function not implemented.')
+}
 
