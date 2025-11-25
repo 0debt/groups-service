@@ -21,9 +21,9 @@ async function startServer() {
       if (url.pathname === "/groups" && req.method === "POST") {
         try {
           const body = await req.json()
-          const { name, description, members } = body
+          const { name, owner, description, members } = body
 
-          const group = await createGroup(name, description, members)
+          const group = await createGroup(name, owner, description, members)
           return new Response(JSON.stringify(group), {
             headers: { "Content-Type": "application/json" },
           });
@@ -37,7 +37,7 @@ async function startServer() {
         }
       }
 
-      if (url.pathname == "/groups " && req.method === "GET") {
+      if (url.pathname == "/groups" && req.method === "GET") {
         try {
           const searchParams = new URL(req.url).searchParams;
           const name = searchParams.get("name") || ""

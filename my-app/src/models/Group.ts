@@ -5,14 +5,16 @@ export interface IGroup {
     name: string;
     description?: string;
     members: string[];
+    owner: string;
     createdAt: Date;
-    imageUrl?: string;
+    imageUrl: string;
 }
 
 const groupSchema = new mongoose.Schema<IGroup>({
     name: { type: String, required: true },
     description: { type: String },
     members: { type: [String], required: true },
+    owner: { type: String, required: true },
     createdAt: { type: Date, default: Date.now },
     imageUrl: { type: String }
 });
@@ -42,7 +44,7 @@ export async function requestPhoto() {
 
 }
 
-export async function createGroup(name: string, description: string, members: string[]) {
+export async function createGroup(name: string, owner: string, description: string, members: string[]) {
 
     try {
 
@@ -52,6 +54,7 @@ export async function createGroup(name: string, description: string, members: st
 
         const group = new Group({
             name,
+            owner,
             description,
             members,
             imageUrl,
