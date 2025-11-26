@@ -14,8 +14,8 @@ export const app = new Hono()
 
 connectDB();
 
-api.route('/groups', groupsRoute)
-app.route('/api/v1', api)
+
+app.route('/api', api as unknown as Hono<any, any, string>)
 
 
 
