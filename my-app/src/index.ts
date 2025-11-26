@@ -21,29 +21,10 @@ app.route('/api', api as unknown as Hono<any, any, string>)
 
 
 //SERVER
-const port = process.env.PORT
+const port = Number(process.env.PORT) || 3000
 console.log(`Server is running on port ${port}`);
+
 export default {
-  port: port,
+  port,
   fetch: app.fetch,
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
