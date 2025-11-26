@@ -81,39 +81,76 @@ groupsRoute.openapi(
 
 groupsRoute.openapi(
     {
-        method: 'post',
-        path: '/updateMember',
-        summary: 'Add or delete an element of a group',
-        request: {
-            body: {
-                content: {
-                    'application/json': {
-                        schema: z.object({
-                            groupId: z.string(),
-                            members: z.tuple([z.string().optional(), z.string().optional()])
-                        }),
-                    },
-                },
+      method: 'post',
+      path: '/updateMember',
+      summary: 'Add or delete an element of a group',
+      request: {
+        body: {
+          content: {
+            'application/json': {
+              schema: z.object({
+                groupId: z.string(),
+
+                members: z.tuple([
+                  z.string().optional(),  // email del membro da aggiungere
+                  z.string().optional()           // userId del membro da rimuovere
+                ])
+              }),
             },
+          },
         },
-        responses: {
-            200: { description: 'Member added or deleted correctly' },
-            400: { description: 'Error on adding or deleting a member of the group' },
-        },
+      },
+      responses: {
+        200: { description: 'Member added or deleted correctly' },
+        400: { description: 'Error on adding or deleting a member of the group' },
+      },
     },
     async (c) => {
-        try {
-            const body = await c.req.valid('json')
-            const memberToAdd = body.members[0]
-            const memberToRemove = body.members[1]
-            const group = await updateGroupMembers(body.groupId, memberToAdd, memberToRemove)
-            return c.json(group)
+      try {
+        const body = await c.req.valid('json')
+  
+        const emailToAdd = body.members[0]      // email
+        const memberToRemove = body.members[1]  // userId
+  
+        let memberIdToAdd: string | undefined = undefined
+  
+        // Se devo aggiungere un membro, prima chiedo a users-service il suo ID
+        if (emailToAdd) {
+          const res = await fetch(
+            `http://users-service:3000//internal/users/:id`,
+            {
+              method: 'GET',
+              headers: { 'Content-Type': 'application/json' },
+            }
+          )
+  
+          if (res.status === 404) {
+            return c.json({ error: 'User not found' }, 400)
+          }
+  
+          if (!res.ok) {
+            return c.json({ error: 'Error calling users-service' }, 400)
+          }
+  
+          const user = await res.json() as { id: string }
+          memberIdToAdd = String(emailToAdd)  // questo è lo userId da passare al service
         }
-        catch (error) {
-            return c.json({ error: 'Failed to add or delete a member of a group' }, 400)
-        }
+  
+        // Qui chiami il tuo service come prima ma gli passi lo userId (non l'email) se stai aggiungendo
+        const group = await updateGroupMembers(
+          body.groupId,
+          memberIdToAdd,   // può essere undefined se non stai aggiungendo
+          memberToRemove   // lo lasci uguale (userId da rimuovere)
+        )
+  
+        return c.json(group)
+      }
+      catch (error) {
+        console.error(error)
+        return c.json({ error: 'Failed to add or delete a member of a group' }, 400)
+      }
     }
-)
+  )
 
 groupsRoute.openapi(
     {
