@@ -26,7 +26,7 @@ export const Group = mongoose.model<IGroup>('Group', groupSchema);
 export async function requestPhoto() {
 
     const unsplash = createApi({
-        accessKey: "jmxmcCTz_JxIDWE9wkKCcWyy9TZ9UfCtF1Oza9xnpIc",
+        accessKey: process.env.ACCES_KEY_UNSPLASH as string,
         fetch,
     });
     const result = await unsplash.photos.getRandom({ count: 1 });

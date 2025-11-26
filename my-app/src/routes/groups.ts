@@ -14,7 +14,56 @@ const groupSchema = z.object({
     description: z.string().optional(),
     members: z.array(z.string()),
 })
+groupsRoute.openapi(
+    {
+        method: 'get',
+        path: '/{groupId}/members/{userId}',
+        summary: 'Verify if a user is member of a group',
+        request: {
+            params: z.object({
+                groupId: z.string().openapi({ description: 'ID of the group' }),
+                userId: z.string().openapi({ description: 'ID of the user' }),
+            })
+        },
+        responses: {
+            200: {
+                description: 'User is member of the group',
+                content: {
+                    'application/json': {
+                        schema: z.object({
+                            groupId: z.string(),
+                            userId: z.string(),
+                            isMember: z.boolean(),
+                        })
+                    }
+                }
+            },
+            404: {
+                description: 'User is not member of the group'
 
+            }
+        }
+    },
+    async (c) => {
+        try {
+            const groupId = c.req.param('groupId')
+            const userId = c.req.param('userId')
+            if (!groupId || !userId) {
+                return c.json({ error: 'Missing groupId or userId' }, 400)
+            }
+            const group = await ReserachchByName(userId)
+            const isMember = group.some(g => g._id.toString() === groupId);
+            if (isMember) {
+                return c.json({ groupId, userId, isMember: true })
+            } else {
+                return c.json({ error: 'User is not member of the group' }, 404)
+            }
+        } catch (error) {
+            return c.json({ error: 'Failed to verify membership' }, 400)
+        }
+    }
+
+)
 groupsRoute.openapi(
     {
         method: 'post',
