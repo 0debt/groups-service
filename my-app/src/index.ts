@@ -7,10 +7,11 @@ import './services/Group'
 import { Hono } from 'hono'
 import { api } from './api/openapi'
 import { groupsRoute } from './routes/groups'
-
-
+import { cors } from 'hono/cors'
 
 export const app = new Hono()
+
+app.use('*', cors())
 
 api.route('/groups', groupsRoute)
 app.route('/api/v1', api)
