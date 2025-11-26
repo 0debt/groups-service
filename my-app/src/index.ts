@@ -1,13 +1,20 @@
-import { Hono } from 'hono'
-import mongoose, { connect } from 'mongoose'
-import { Group, ReserachchByName } from './models/Group'
+
+import { ReserachchByName } from './services/Group'
 import { serve } from "bun"
 import { connectDB } from './db/db'
-import { createGroup } from './models/Group'
-import { requestPhoto } from './models/Group'
-import './models/Group'
+import { createGroup } from './services/Group'
+import './services/Group'
+import { Hono } from 'hono'
+import { api } from './api/openapi'
+import { groupsRoute } from './routes/groups'
 
-const app = new Hono()
+
+
+export const app = new Hono()
+
+api.route('/groups', groupsRoute)
+app.route('/api/v1', api)
+
 
 
 async function startServer() {
@@ -15,30 +22,16 @@ async function startServer() {
 
   serve({
     port: 3000,
+
+
     async fetch(req) {
       const url = new URL(req.url);
 
-      if (url.pathname === "/groups/creation" && req.method === "POST") {
-        try {
-          const body = await req.json()
-          const { name, owner, description, members } = body
 
-          const group = await createGroup(name, owner, description, members)
-          return new Response(JSON.stringify(group), {
-            headers: { "Content-Type": "application/json" },
-          });
 
-        } catch (error) {
-          return new Response(JSON.stringify({ error: 'Failed to create group' }), {
-            status: 400,
-            headers: { 'Content-Type': 'application/json' },
-          })
-
-        }
-      }
 
       if (url.pathname === "/groups/deletion" && req.method === "POST") {
-        try{
+        try {
           const body = await req.json()
           const { groupId } = body
 
@@ -55,9 +48,9 @@ async function startServer() {
       }
 
       if (url.pathname === "/groups/updateMember" && req.method === "POST") {
-        try{
+        try {
           const body = await req.json()
-          const { groupId, memberToAdd, memberToRemove} = body
+          const { groupId, memberToAdd, memberToRemove } = body
 
           const updatedGroup = await updateGroupMembers(groupId, memberToAdd, memberToRemove)
           return new Response(JSON.stringify(updatedGroup), {
@@ -71,15 +64,15 @@ async function startServer() {
         }
       }
       if (url.pathname === "/groups/updateDetails" && req.method === "POST") {
-        try{
+        try {
           const body = await req.json()
-          const { groupId, name, description} = body
+          const { groupId, name, description } = body
 
           const updatedGroup = await updateGroupDetails(groupId, name, description)
           return new Response(JSON.stringify(updatedGroup), {
             headers: { "Content-Type": "application/json" },
           });
-        }catch (error) {
+        } catch (error) {
           return new Response(JSON.stringify({ error: 'Failed to modify a detail of a  group' }), {
             status: 400,
             headers: { 'Content-Type': 'application/json' },
@@ -87,25 +80,8 @@ async function startServer() {
         }
       }
 
-      if (url.pathname == "/groups/visualization" && req.method === "GET") {
-        try {
-          const searchParams = new URL(req.url).searchParams;
-          const name = searchParams.get("name") || ""
 
-          const groups = await ReserachchByName(name)
-          return new Response(JSON.stringify(groups), {
-            headers: { "Content-Type": "application/json" },
-          });
 
-        } catch (error) {
-          return new Response(JSON.stringify({ error: 'Failed to get groups' }), {
-            status: 400,
-            headers: { 'Content-Type': 'application/json' },
-          })
-        }
-      }
-
-      
 
       return new Response("Not Found", { status: 404 });
     },
@@ -115,7 +91,10 @@ async function startServer() {
 startServer()
 
 
-export default app
+export default {
+  port: Number(Bun.env.PORT || 3000),
+  fetch: app.fetch,
+}
 
 
 

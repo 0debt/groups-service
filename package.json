@@ -4,9 +4,12 @@
     "dev": "bun run --hot my-app/src/index.ts"
   },
   "dependencies": {
+    "@hono/swagger-ui": "^0.5.2",
+    "@hono/zod-openapi": "^1.1.5",
     "hono": "^4.10.6",
     "mongoose": "^8.0.0",
-    "unsplash-js": "^7.0.20"
+    "unsplash-js": "^7.0.20",
+    "zod": "^4.1.13"
   },
   "devDependencies": {
     "@types/bun": "latest"

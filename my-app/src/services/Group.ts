@@ -10,7 +10,7 @@ export interface IGroup {
     imageUrl: string;
 }
 
-const groupSchema = new mongoose.Schema<IGroup>({
+export const groupSchema = new mongoose.Schema<IGroup>({
     name: { type: String, required: true },
     description: { type: String },
     members: { type: [String], required: true },
@@ -96,7 +96,7 @@ export async function deleteGroup(groupId: string) {
 
 
 //update = aggiungere o eliminare un membro
-export async function updateGroupMembers( groupId: string, memberToAdd?: string, memberToRemove?: string){
+export async function updateGroupMembers(groupId: string, memberToAdd?: string, memberToRemove?: string) {
     const group = await Group.findById(groupId);
     if (!group) {
         throw new Error("Group not found");
@@ -131,31 +131,31 @@ export async function updateGroupMembers( groupId: string, memberToAdd?: string,
 }
 
 export async function updateGroupInfo(groupId: string, name?: string, description?: string) {
-      const group = await Group.findById(groupId);
-      if (!group) {
-          throw new Error("Group not found");
-      }
-  
-      let modified = false;
-  
-      // Aggiorna nome se presente
-      if (name !== undefined) {
-          group.name = name;
-          modified = true;
-      }
-  
-      // Aggiorna descrizione se presente
-      if (description !== undefined) {
-          group.description = description;
-          modified = true;
-      }
-  
-      // Se non è stato fatto nulla → errore
-      if (!modified) {
-          throw new Error("No fields to update. Provide name or description.");
-      }
-  
-      await group.save();
-      console.log("Group info updated:", group);
-      return group;
-  }
+    const group = await Group.findById(groupId);
+    if (!group) {
+        throw new Error("Group not found");
+    }
+
+    let modified = false;
+
+    // Aggiorna nome se presente
+    if (name !== undefined) {
+        group.name = name;
+        modified = true;
+    }
+
+    // Aggiorna descrizione se presente
+    if (description !== undefined) {
+        group.description = description;
+        modified = true;
+    }
+
+    // Se non è stato fatto nulla → errore
+    if (!modified) {
+        throw new Error("No fields to update. Provide name or description.");
+    }
+
+    await group.save();
+    console.log("Group info updated:", group);
+    return group;
+}
