@@ -16,5 +16,3 @@ api.doc('/openapi.json', {
 
 // INTERFACCIA SWAGGER-UI
 api.get('/docs', swaggerUI({ url: '/api/openapi.json' }))
-
-

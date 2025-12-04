@@ -1,9 +1,9 @@
 
-import { ReserachchByName } from './services/Group'
+import { ReserachchByName } from './services/services'
 import { serve } from "bun"
 import { connectDB } from './db/db'
-import { createGroup } from './services/Group'
-import './services/Group'
+import { createGroup } from './services/services'
+import './services/services'
 import { Hono } from 'hono'
 import { api } from './api/openapi'
 import { groupsRoute } from './routes/groups'
