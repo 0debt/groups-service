@@ -215,12 +215,14 @@ groupsRoute.openapi(
   
         const emailToAdd = body.members[0]
         const memberToRemove = body.members[1]
+        const USERS_SERVICE_URL = process.env.USERS_SERVICE_URL!;
+
         let memberIdToAdd: string | undefined = undefined
   
         // Se devo aggiungere un membro, prima chiedo a users-service il suo ID
         if (emailToAdd) {
           const res = await fetch(
-            `http://users-service:3000/internal/users?email=${encodeURIComponent(emailToAdd)}`,
+            `${USERS_SERVICE_URL}?email=${encodeURIComponent(emailToAdd)}`,
             {
               method: 'GET',
               headers: { 'Content-Type': 'application/json' },
