@@ -1,0 +1,70 @@
+
+export class CircuitBreaker {
+    private failureCount: number;
+    private threshold: number;
+    private timeout: number;
+    private lastFailureTime: number;
+    private state: 'CLOSED' | 'OPEN' | 'HALF_OPEN';
+
+
+
+
+    constructor() {
+        this.failureCount = 0;
+        this.threshold = 3;
+        this.timeout = 30000;
+        this.lastFailureTime = 0;
+        this.state = 'CLOSED';
+    }
+
+    public reset() {
+        this.failureCount = 0;
+        this.state = 'CLOSED';
+        this.lastFailureTime = 0;
+    }
+
+    public recordFailure() {
+        this.failureCount += 1;
+        this.lastFailureTime = Date.now();
+
+        if (this.failureCount >= this.threshold) {
+            this.state = 'OPEN';
+        }
+        if (this.state == 'HALF_OPEN') {
+            this.state = 'OPEN'
+        }
+
+    }
+
+    public recordSuccess() {
+        if (this.state === 'HALF_OPEN') {
+            this.reset();
+            this.state = 'CLOSED';
+        }
+    }
+
+
+    public canRequest(): boolean {
+        if (this.state == 'OPEN' && (Date.now() - this.lastFailureTime) > this.timeout) {
+            this.state = 'HALF_OPEN'
+            return true
+        }
+
+
+        if (this.state == 'HALF_OPEN') {
+            return true
+        }
+        if (this.state == 'CLOSED') {
+            return true
+        }
+
+
+        return false;
+    }
+
+
+
+
+
+
+}
