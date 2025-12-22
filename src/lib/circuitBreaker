@@ -1,20 +1,18 @@
 
 export class CircuitBreaker {
-    private failureCount: number;
+    private failureCount: number = 0;
     private threshold: number;
     private timeout: number;
-    private lastFailureTime: number;
-    private state: 'CLOSED' | 'OPEN' | 'HALF_OPEN';
+    private lastFailureTime: number = 0;
+    private state: 'CLOSED' | 'OPEN' | 'HALF_OPEN' = 'CLOSED';
 
 
 
 
-    constructor() {
-        this.failureCount = 0;
-        this.threshold = 3;
-        this.timeout = 30000;
-        this.lastFailureTime = 0;
-        this.state = 'CLOSED';
+    constructor(threshold = 3, timeout = 30000) {
+
+        this.threshold = threshold;
+        this.timeout = timeout;
     }
 
     public reset() {
@@ -41,6 +39,7 @@ export class CircuitBreaker {
             this.reset();
             this.state = 'CLOSED';
         }
+        this.failureCount = 0;
     }
 
 
@@ -51,9 +50,8 @@ export class CircuitBreaker {
         }
 
 
-        if (this.state == 'HALF_OPEN') {
-            return true
-        }
+
+
         if (this.state == 'CLOSED') {
             return true
         }
