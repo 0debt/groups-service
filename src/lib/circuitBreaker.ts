@@ -1,5 +1,5 @@
 
-export class CircuitBreaker {
+export class circuitBreaker {
     private failureCount: number = 0;
     private threshold: number;
     private timeout: number;
@@ -15,7 +15,7 @@ export class CircuitBreaker {
         this.timeout = timeout;
     }
 
-    public reset() {
+    private reset() {
         this.failureCount = 0;
         this.state = 'CLOSED';
         this.lastFailureTime = 0;
