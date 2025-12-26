@@ -1,9 +1,9 @@
 // routes/groups.ts
 import { OpenAPIHono, z } from '@hono/zod-openapi'
 import { createGroup, deleteGroup, updateGroupMembers, updateGroupInfo } from '../services/services'
-import { publishGroupEvent } from '../redisClient'
+import { publishGroupEvent } from '../lib/redisClient'
 import { ReserachchByName } from '../services/services'
-import { getGroupSummary } from '../services/services'
+import { getGroupSummary } from '../services/summaryGroup';
 import { circuitBreaker } from '../lib/circuitBreaker';
 
 export const groupsRoute = new OpenAPIHono()
@@ -224,6 +224,9 @@ groupsRoute.openapi(
 
       // Se devo aggiungere un membro, prima chiedo a users-service il suo ID
       if (emailToAdd) {
+        if (!circuitBreakerInstance.canRequest()) {
+          return c.json({ error: 'Users service is currently unavailable' }, 503)
+        }
         const res = await fetch(
           `${USERS_SERVICE_URL}?email=${encodeURIComponent(emailToAdd)}`,
           {
@@ -233,11 +236,14 @@ groupsRoute.openapi(
         )
 
         if (res.status === 404) {
+          circuitBreakerInstance.recordFailure();
           return c.json({ error: 'User not found' }, 400)
         }
 
         if (!res.ok) {
+          circuitBreakerInstance.recordFailure();
           return c.json({ error: 'Error calling users-service' }, 400)
+
         }
 
         const user = (await res.json()) as { id: string }

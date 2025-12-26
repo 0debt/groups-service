@@ -21,7 +21,7 @@ connectDB();
 app.route('/api', api as unknown as Hono<any, any, string>)
 
 //SERVER
-const port = Number(process.env.PORT) || 3000
+const port = Number(process.env.PORT);
 console.log(`Server is running on port ${port}`);
 
 export default {

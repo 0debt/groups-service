@@ -1,7 +1,12 @@
-// src/redisClient.ts
+
 import Redis from "ioredis";
 
-export const redis = new Redis(process.env.REDIS_URL ?? "redis://localhost:6379");
+const url = process.env.REDIS_URL;
+if (!url) {
+  throw new Error("REDIS_URL is not defined in environment variables");
+}
+
+export const redis = new Redis(url);
 
 export type GroupEventType =
   | "group.member.added"
