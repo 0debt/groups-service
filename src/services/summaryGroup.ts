@@ -65,57 +65,74 @@ export async function upsertGroupSummary(group: mongoose.HydratedDocument<IGroup
     );
 }
 
-
-
 export async function getGroupSummary(groupId: string): Promise<IGroupSummary> {
-    // 1) prendo la MV se esiste
-    let summary = await GroupSummary.findOne({ groupId }).lean<IGroupSummary>();
 
-    // 2) se non esiste, la creo dai dati del gruppo (interni)
+    const summary = await GroupSummary
+        .findOne({ groupId })
+        .lean<IGroupSummary>();
+
     if (!summary) {
-        const group = await Group.findById(groupId);
-        if (!group) {
-            throw new Error("Group not found");
-        }
+        throw new Error("Group summary not found");
 
-        await upsertGroupSummary(group);
-        summary = await GroupSummary.findOne({ groupId }).lean<IGroupSummary>();
-
-        if (!summary) {
-            throw new Error("Group summary not found");
-        }
     }
 
-    if (!circuitBreakerInstance.canRequest()) {
-        console.log("Circuit breaker is OPEN. Returning cached summary.");
-        return summary;
-    }
-    // 3) ON READ: provo a prendere i dati spese da expenses-service e salvarli nella MV
-    try {
-        const exp = await fetchExpensesSummary(groupId);
-        await upsertExpensesIntoGroupSummary(groupId, exp);
-    } catch (err) {
-        // fallback: se expenses è giù, tengo i dati cached e segno stale
-        await GroupSummary.updateOne(
-            { groupId },
-            { $set: { expensesStale: true, updatedAt: new Date() } }
-        );
-    }
-
-    // 4) rileggo la MV aggiornata e la ritorno
-    const refreshed = await GroupSummary.findOne({ groupId }).lean<IGroupSummary>();
-    if (!refreshed) throw new Error("Group summary not found");
-
-    return refreshed;
+    return summary;
 }
+
+
+// export async function getGroupSummary(groupId: string): Promise<IGroupSummary> {
+//     // 1) prendo la MV se esiste
+//     let summary = await GroupSummary.findOne({ groupId }).lean<IGroupSummary>();
+
+//     // 2) se non esiste, la creo dai dati del gruppo (interni)
+//     if (!summary) {
+//         const group = await Group.findById(groupId);
+//         if (!group) {
+//             throw new Error("Group not found");
+//         }
+
+//         await upsertGroupSummary(group);
+//         summary = await GroupSummary.findOne({ groupId }).lean<IGroupSummary>();
+
+//         if (!summary) {
+//             throw new Error("Group summary not found");
+//         }
+//     }
+
+//     if (!circuitBreakerInstance.canRequest()) {
+//         console.log("Circuit breaker is OPEN. Returning cached summary.");
+//         return summary;
+//     }
+//     // 3) ON READ: provo a prendere i dati spese da expenses-service e salvarli nella MV
+//     try {
+//         const exp = await fetchExpensesSummary(groupId);
+//         await upsertExpensesIntoGroupSummary(groupId, exp);
+//     } catch (err) {
+//         // fallback: se expenses è giù, tengo i dati cached e segno stale
+//         await GroupSummary.updateOne(
+//             { groupId },
+//             { $set: { expensesStale: true, updatedAt: new Date() } }
+//         );
+//     }
+
+//     // 4) rileggo la MV aggiornata e la ritorno
+//     const refreshed = await GroupSummary.findOne({ groupId }).lean<IGroupSummary>();
+//     if (!refreshed) throw new Error("Group summary not found");
+
+//     return refreshed;
+// }
+
+
 
 export async function upsertExpensesIntoGroupSummary(groupId: string, exp: ExpensesSummaryDTO) {
     await GroupSummary.updateOne(
         { groupId },
         {
-            $set: {
+            $inc: {
                 totalAmount: exp.totalAmount ?? 0,
-                expensesCount: exp.expensesCount ?? 0,
+                expensesCount: exp.expensesCount ?? 0
+            },
+            $set: {
                 lastExpenseAt: exp.lastExpenseAt ? new Date(exp.lastExpenseAt) : undefined,
                 currency: exp.currency ?? "EUR",
                 expensesStale: false,
@@ -126,29 +143,48 @@ export async function upsertExpensesIntoGroupSummary(groupId: string, exp: Expen
     );
 }
 
-async function fetchExpensesSummary(groupId: string): Promise<ExpensesSummaryDTO> {
-    const baseUrl = process.env.EXPENSES_SERVICE_URL;
-    if (!baseUrl) {
-        throw new Error("EXPENSES_SERVICE_URL not set");
-    }
 
 
-    const response = await fetch(
-        `${baseUrl}/expenses/groups/${groupId}/summary`,
-        {
-            method: "GET",
-            headers: { "Content-Type": "application/json" },
-        }
-    );
+// export async function upsertExpensesIntoGroupSummary(groupId: string, exp: ExpensesSummaryDTO) {
+//     await GroupSummary.updateOne(
+//         { groupId },
+//         {
+//             $set: {
+//                 totalAmount: exp.totalAmount ?? 0,
+//                 expensesCount: exp.expensesCount ?? 0,
+//                 lastExpenseAt: exp.lastExpenseAt ? new Date(exp.lastExpenseAt) : undefined,
+//                 currency: exp.currency ?? "EUR",
+//                 expensesStale: false,
+//                 updatedAt: new Date(),
+//             },
+//         },
+//         { upsert: true }
+//     );
+// }
 
-    if (!response.ok) {
-        throw new Error(
-            `expenses-service error: ${response.status}`
-        );
-    }
+// async function fetchExpensesSummary(groupId: string): Promise<ExpensesSummaryDTO> {
+//     const baseUrl = process.env.EXPENSES_SERVICE_URL;
+//     if (!baseUrl) {
+//         throw new Error("EXPENSES_SERVICE_URL not set");
+//     }
 
-    return response.json();
-}
+
+//     const response = await fetch(
+//         `${baseUrl}/expenses/groups/${groupId}/summary`,
+//         {
+//             method: "GET",
+//             headers: { "Content-Type": "application/json" },
+//         }
+//     );
+
+//     if (!response.ok) {
+//         throw new Error(
+//             `expenses-service error: ${response.status}`
+//         );
+//     }
+
+//     return response.json();
+// }
 
 
 

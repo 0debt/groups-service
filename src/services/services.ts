@@ -1,6 +1,6 @@
 import mongoose from 'mongoose';
 import { createApi } from "unsplash-js";
-import { publishGroupEvent } from '../lib/redisClient';
+import { publishGroupEvent } from '../lib/redisPublisher';
 import { circuitBreaker } from '../lib/circuitBreaker';
 import { upsertGroupSummary } from '../services/summaryGroup';
 import { GroupSummary } from './summaryGroup';

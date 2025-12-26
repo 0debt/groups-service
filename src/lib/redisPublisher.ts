@@ -18,7 +18,7 @@ export interface GroupEvent<T = any> {
   type: GroupEventType;
   groupId: string;
   payload: T;
-  timestamp: string; // ISO
+  timestamp: string;
 }
 
 export async function publishGroupEvent<T>(event: GroupEvent<T>) {

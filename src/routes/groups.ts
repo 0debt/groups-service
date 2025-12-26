@@ -1,7 +1,7 @@
 // routes/groups.ts
 import { OpenAPIHono, z } from '@hono/zod-openapi'
 import { createGroup, deleteGroup, updateGroupMembers, updateGroupInfo } from '../services/services'
-import { publishGroupEvent } from '../lib/redisClient'
+import { publishGroupEvent } from '../lib/redisPublisher'
 import { ReserachchByName } from '../services/services'
 import { getGroupSummary } from '../services/summaryGroup';
 import { circuitBreaker } from '../lib/circuitBreaker';
