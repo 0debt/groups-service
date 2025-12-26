@@ -4,7 +4,7 @@ import { publishGroupEvent } from '../lib/redisPublisher';
 import { circuitBreaker } from '../lib/circuitBreaker';
 import { upsertGroupSummary } from '../services/summaryGroup';
 import { GroupSummary } from './summaryGroup';
-
+import { requestPhoto } from '../lib/unsplash';
 export interface IGroup {
   name: string;
   description?: string;
@@ -34,53 +34,44 @@ export const circuitBreakerInstance = new circuitBreaker(5, 60000); // threshold
 export const Group = mongoose.model<IGroup>('Group', groupSchema);
 
 
-export async function requestPhoto() {
 
-  const unsplash = createApi({
-    accessKey: process.env.ACCES_KEY_UNSPLASH as string,
-    fetch,
-  });
-  const result = await unsplash.photos.getRandom({ count: 1 });
-
-  if (result.type === "success") {
-    const imageUrl = Array.isArray(result.response) ? result.response[0] : result.response // URL della foto da usare
-    const photo = imageUrl.urls.regular
-    console.log("URL FOTO:", photo);
-    return photo;
-  } else {
-    console.error("Errore nel recuperare la foto da Unsplash:", result.errors);
-    return "";
-  }
-
-
-}
 
 export async function createGroup(name: string, owner: string, description: string, members: string[]) {
 
-  try {
+  // Default fallback image
+  let imageUrl = process.env.DEFAULT_GROUP_IMAGE_URL;
 
-
-    const imageUrl = await requestPhoto();
-
-
-    const group = new Group({
-      name,
-      owner,
-      description,
-      members,
-      imageUrl,
-    });
-
-    await group.save();
-
-    await upsertGroupSummary(group);
-
-
-    return group;
-  } catch (error) {
-    console.error(" ERRORE IN CREAZIONE:", error);
-    throw error;
+  // Usa il circuit breaker per la chiamata a Unsplash
+  if (circuitBreakerInstance.canRequest()) {
+    try {
+      imageUrl = await requestPhoto();
+      circuitBreakerInstance.recordSuccess();
+    } catch (err) {
+      console.warn("requestPhoto failed, using fallback image", err);
+      circuitBreakerInstance.recordFailure();
+    }
+  } else {
+    console.log("Circuit breaker aperto: uso immagine fallback");
   }
+
+
+  const group = new Group({
+    name,
+    owner,
+    description,
+    members,
+    imageUrl,
+  });
+
+  await group.save();
+
+  await upsertGroupSummary(group);
+
+
+  return group;
+
+
+
 }
 
 export async function ReserachchByName(memberName: string) {
@@ -237,3 +228,4 @@ export async function updateGroupInfo(
 
   return group;
 }
+

@@ -5,11 +5,22 @@ import { publishGroupEvent } from '../lib/redisPublisher'
 import { ReserachchByName } from '../services/services'
 import { getGroupSummary } from '../services/summaryGroup';
 import { circuitBreaker } from '../lib/circuitBreaker';
+import Redis from 'ioredis';
+import { redis } from 'bun';
+import { cached } from 'zod/v4/core/util.cjs';
+
 
 export const groupsRoute = new OpenAPIHono()
 
 
 const circuitBreakerInstance = new circuitBreaker(5, 60000);
+
+const redisUrl = process.env.REDIS_URL;
+if (!redisUrl) {
+  throw new Error("REDIS_URL is not defined in environment variables");
+}
+
+const redisCache = new Redis(redisUrl);
 
 const groupSchema = z.object({
   name: z.string(),
@@ -49,14 +60,26 @@ groupsRoute.openapi(
       }
     }
   },
-  // TypeScript
+
   async (c) => {
+
     const { groupId } = c.req.valid('param');
-    const summary = await getGroupSummary(groupId);
-    if (!summary) {
-      throw new Error('Group not found'); // oppure una custom NotFoundError
+    const cachedSummary = await redisCache.get(`group_summary:${groupId}`);
+    if (!cachedSummary) {
+
+      const summary = await getGroupSummary(groupId);
+      if (!summary) {
+        throw new Error('Group not found');
+      }
+      await redisCache.set(`group_summary:${groupId}`, JSON.stringify(summary), 'EX', 3600);
+      return c.json(summary, 200);
+
     }
-    return c.json(summary, 200);
+    else {
+      return c.json(JSON.parse(cachedSummary), 200);
+
+    }
+
   }
 );
 
@@ -227,28 +250,36 @@ groupsRoute.openapi(
         if (!circuitBreakerInstance.canRequest()) {
           return c.json({ error: 'Users service is currently unavailable' }, 503)
         }
-        const res = await fetch(
-          `${USERS_SERVICE_URL}?email=${encodeURIComponent(emailToAdd)}`,
-          {
-            method: 'GET',
-            headers: { 'Content-Type': 'application/json' },
+        const cachedMemberId = await redisCache.get(`user_email:${emailToAdd}`);
+        if (cachedMemberId) {
+          memberIdToAdd = cachedMemberId;
+          circuitBreakerInstance.recordSuccess();
+        } else {
+          const res = await fetch(
+            `${USERS_SERVICE_URL}?email=${encodeURIComponent(emailToAdd)}`,
+            {
+              method: 'GET',
+              headers: { 'Content-Type': 'application/json' },
+            }
+          )
+
+          if (res.status === 404) {
+            circuitBreakerInstance.recordFailure();
+            return c.json({ error: 'User not found' }, 400)
           }
-        )
 
-        if (res.status === 404) {
-          circuitBreakerInstance.recordFailure();
-          return c.json({ error: 'User not found' }, 400)
+          if (!res.ok) {
+            circuitBreakerInstance.recordFailure();
+            return c.json({ error: 'Error calling users-service' }, 400)
+
+          }
+
+          const user = (await res.json()) as { id: string }
+          memberIdToAdd = user.id
+          circuitBreakerInstance.recordSuccess();
+          redisCache.set(`user_email:${emailToAdd}`, memberIdToAdd, 'EX', 3600);
         }
 
-        if (!res.ok) {
-          circuitBreakerInstance.recordFailure();
-          return c.json({ error: 'Error calling users-service' }, 400)
-
-        }
-
-        const user = (await res.json()) as { id: string }
-        memberIdToAdd = user.id
-        circuitBreakerInstance.recordSuccess();
       }
 
       const group = await updateGroupMembers(

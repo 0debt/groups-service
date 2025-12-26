@@ -1,5 +1,5 @@
 import { createClient } from "redis";
-import { upsertExpensesIntoGroupSummary } from "../services/services";
+import { upsertExpensesIntoGroupSummary } from "../services/summaryGroup";
 
 export async function startExpensesConsumer() {
   const sub = createClient({ url: process.env.REDIS_URL });
