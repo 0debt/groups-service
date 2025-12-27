@@ -1,7 +1,8 @@
 import mongoose from 'mongoose';
-import { IGroup } from './services';
+import { IGroup, redisCache } from './services';
 import { Group } from './services';
 import { circuitBreakerInstance } from './services';
+import { redis } from 'bun';
 
 
 type ExpensesSummaryDTO = {
@@ -45,6 +46,7 @@ const groupSummarySchema = new mongoose.Schema<IGroupSummary>({
 
 export const GroupSummary = mongoose.model<IGroupSummary>('GroupSummary', groupSummarySchema);
 
+
 export async function upsertGroupSummary(group: mongoose.HydratedDocument<IGroup>) {
     await GroupSummary.findOneAndUpdate(
         { groupId: group._id.toString() },
@@ -63,9 +65,23 @@ export async function upsertGroupSummary(group: mongoose.HydratedDocument<IGroup
         },
         { upsert: true, new: true }
     );
+
+    const cacheKey = `group_summary:${group._id.toString()}`;
+    await redisCache.del(cacheKey);
+    console.log(`Cache invalidated for group summary: ${cacheKey}`);
 }
 
 export async function getGroupSummary(groupId: string): Promise<IGroupSummary> {
+    const cacheKey = `group_summary:${groupId}`;
+
+    // Try to get from cache
+    const cachedSummary = await redisCache.get(cacheKey);
+    if (cachedSummary) {
+        console.log("Returning cached group summary");
+        return JSON.parse(cachedSummary) as IGroupSummary;
+    }
+
+    console.log("Cache miss for group summary, fetching from DB");
 
     const summary = await GroupSummary
         .findOne({ groupId })
@@ -141,6 +157,9 @@ export async function upsertExpensesIntoGroupSummary(groupId: string, exp: Expen
         },
         { upsert: true }
     );
+    const cacheKey = `group_summary:${groupId}`;
+    await redisCache.del(cacheKey);
+    console.log(`Cache invalidated for group summary: ${cacheKey}`);
 }
 
 

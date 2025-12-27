@@ -1,13 +1,13 @@
 // routes/groups.ts
 import { OpenAPIHono, z } from '@hono/zod-openapi'
-import { createGroup, deleteGroup, updateGroupMembers, updateGroupInfo } from '../services/services'
+import { createGroup, deleteGroup, updateGroupMembers, updateGroupInfo, IGroup } from '../services/services'
 import { publishGroupEvent } from '../lib/redisPublisher'
 import { ReserachchByName } from '../services/services'
 import { getGroupSummary } from '../services/summaryGroup';
 import { circuitBreaker } from '../lib/circuitBreaker';
-import Redis from 'ioredis';
-import { redis } from 'bun';
-import { cached } from 'zod/v4/core/util.cjs';
+import { redisCache } from '../services/services';
+import mongoose from 'mongoose';
+
 
 
 export const groupsRoute = new OpenAPIHono()
@@ -15,12 +15,8 @@ export const groupsRoute = new OpenAPIHono()
 
 const circuitBreakerInstance = new circuitBreaker(5, 60000);
 
-const redisUrl = process.env.REDIS_URL;
-if (!redisUrl) {
-  throw new Error("REDIS_URL is not defined in environment variables");
-}
 
-const redisCache = new Redis(redisUrl);
+
 
 const groupSchema = z.object({
   name: z.string(),
@@ -122,7 +118,7 @@ groupsRoute.openapi(
         return c.json({ error: 'Missing groupId or userId' }, 400)
       }
       const group = await ReserachchByName(userId)
-      const isMember = group.some(g => g._id.toString() === groupId);
+      const isMember = group.some((g: IGroup) => (g._id as mongoose.Types.ObjectId).toString() === groupId);
       if (isMember) {
         return c.json({ groupId, userId, isMember: true })
       } else {

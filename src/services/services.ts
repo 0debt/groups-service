@@ -5,7 +5,12 @@ import { circuitBreaker } from '../lib/circuitBreaker';
 import { upsertGroupSummary } from '../services/summaryGroup';
 import { GroupSummary } from './summaryGroup';
 import { requestPhoto } from '../lib/unsplash';
+import Redis from 'ioredis';
+
+
+
 export interface IGroup {
+  _id?: mongoose.Types.ObjectId;
   name: string;
   description?: string;
   members: string[];
@@ -17,6 +22,7 @@ export interface IGroup {
 
 
 export const groupSchema = new mongoose.Schema<IGroup>({
+  _id: { type: mongoose.Schema.Types.ObjectId, auto: true },
   name: { type: String, required: true },
   description: { type: String },
   members: { type: [String], required: true },
@@ -33,15 +39,20 @@ export const circuitBreakerInstance = new circuitBreaker(5, 60000); // threshold
 
 export const Group = mongoose.model<IGroup>('Group', groupSchema);
 
+const redisUrl = process.env.REDIS_URL
+if (!redisUrl) {
+  throw new Error("REDIS_URL non è definita nelle variabili d'ambiente");
+}
 
 
+export const redisCache = new Redis(redisUrl);
 
 export async function createGroup(name: string, owner: string, description: string, members: string[]) {
 
   // Default fallback image
   let imageUrl = process.env.DEFAULT_GROUP_IMAGE_URL;
 
-  // Usa il circuit breaker per la chiamata a Unsplash
+  // circuit breaker for Unsplash API
   if (circuitBreakerInstance.canRequest()) {
     try {
       imageUrl = await requestPhoto();
@@ -64,6 +75,12 @@ export async function createGroup(name: string, owner: string, description: stri
   });
 
   await group.save();
+  console.log("Group created:", group);
+
+  for (const member of group.members) {
+    await redisCache.del(member);
+    console.log(`Cache invalidated for member: ${member}`);
+  }
 
   await upsertGroupSummary(group);
 
@@ -75,12 +92,22 @@ export async function createGroup(name: string, owner: string, description: stri
 }
 
 export async function ReserachchByName(memberName: string) {
-  try {
-    const groups = await Group.find({ members: memberName });
-    return groups;
-  } catch (error) {
-    console.error("ERRORE NELLA RICERCA:", error);
-    throw error;
+  let cachedGroups = await redisCache.get(memberName);
+  if (!cachedGroups) {
+    console.log("Cache miss for member:", memberName);
+    try {
+      let groups = await Group.find({ members: memberName });
+      await redisCache.set(memberName, JSON.stringify(groups), 'EX', 3600);
+      return groups;
+    } catch (error) {
+      console.error("ERRORE NELLA RICERCA:", error);
+      throw error;
+    }
+  } else {
+    console.log("Cache hit for member:", memberName);
+    const result = await cachedGroups
+    return JSON.parse(cachedGroups);
+
   }
 }
 
@@ -97,6 +124,8 @@ export async function deleteGroup(groupId: string) {
   await Group.deleteOne({ _id: groupId });
   console.log('Group deleted:', group);
   await GroupSummary.deleteOne({ groupId });
+  redisCache.del(`group_summary:${groupId}`);
+
 
 
   await publishGroupEvent({
@@ -149,6 +178,7 @@ export async function updateGroupMembers(groupId: string, memberToAdd?: string, 
   await group.save();
   console.log("Group updated:", group);
   await upsertGroupSummary(group);
+
 
   // Pubblica eventi su Redis
   if (addedMember) {
