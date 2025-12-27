@@ -240,8 +240,8 @@ groupsRoute.openapi(
       const USERS_SERVICE_URL = process.env.USERS_SERVICE_URL!;
 
       let memberIdToAdd: string | undefined = undefined
-
-      // Se devo aggiungere un membro, prima chiedo a users-service il suo ID
+      let memberIdToRemove: string | undefined = undefined
+      //First check if we can add a member and resolve the userId
       if (emailToAdd) {
         if (!circuitBreakerInstance.canRequest()) {
           return c.json({ error: 'Users service is currently unavailable' }, 503)
@@ -273,15 +273,52 @@ groupsRoute.openapi(
           const user = (await res.json()) as { id: string }
           memberIdToAdd = user.id
           circuitBreakerInstance.recordSuccess();
-          redisCache.set(`user_email:${emailToAdd}`, memberIdToAdd, 'EX', 3600);
+          await redisCache.set(`user_email:${emailToAdd}`, memberIdToAdd, 'EX', 3600);
         }
 
+      }
+
+      // Converti email → userId per RIMOZIONE
+      if (memberToRemove) {
+        if (!circuitBreakerInstance.canRequest()) {
+          return c.json({ error: 'Users service is currently unavailable' }, 503)
+        }
+
+
+        const cachedMemberId = await redisCache.get(`user_email:${memberToRemove}`);
+        if (cachedMemberId) {
+          memberIdToRemove = cachedMemberId;
+          circuitBreakerInstance.recordSuccess();
+        } else {
+          const res = await fetch(
+            `${USERS_SERVICE_URL}?email=${encodeURIComponent(memberToRemove)}`,
+            {
+              method: 'GET',
+              headers: { 'Content-Type': 'application/json' },
+            }
+          )
+
+          if (res.status === 404) {
+            circuitBreakerInstance.recordFailure();
+            return c.json({ error: 'User to remove not found' }, 400)
+          }
+
+          if (!res.ok) {
+            circuitBreakerInstance.recordFailure();
+            return c.json({ error: 'Error calling users-service for remove' }, 400)
+          }
+
+          const user = (await res.json()) as { id: string }
+          memberIdToRemove = user.id
+          circuitBreakerInstance.recordSuccess();
+          await redisCache.set(`user_email:${memberToRemove}`, memberIdToRemove, 'EX', 3600);
+        }
       }
 
       const group = await updateGroupMembers(
         body.groupId,
         memberIdToAdd,  // può essere undefined
-        memberToRemove  // può essere undefined
+        memberIdToRemove  // può essere undefined
       )
 
       if (memberIdToAdd) {
@@ -302,7 +339,7 @@ groupsRoute.openapi(
           type: 'group.member.removed',
           groupId: body.groupId,
           payload: {
-            memberId: memberToRemove,
+            memberId: memberIdToRemove,
             members: group.members,
           },
           timestamp: new Date().toISOString(),
