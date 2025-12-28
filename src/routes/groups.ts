@@ -192,58 +192,66 @@ groupsRoute.openapi(
 
 groupsRoute.openapi(
   {
-    method: 'post',
-    path: '/deletion',
+    method: 'delete',
+    path: '/{id}', // L'ID passa nell'URL, REST standard
     summary: 'Deletion of a group',
     request: {
-      body: {
-        content: {
-          'application/json': {
-            schema: z.object({
-              groupId: z.string(),
-            }),
-          },
-        },
-      },
+      params: z.object({
+        id: z.string().openapi({ description: 'ID of the group to delete' }),
+      }),
     },
     responses: {
       200: { description: 'Group correctly deleted' },
-      400: { description: 'Error on the deletion of the group' },
+      400: { description: 'Invalid Group ID' },
+      403: { description: 'Forbidden: only the owner can delete the group' },
+      404: { description: 'Group not found' }
     },
   },
   async (c) => {
     try {
-      const body = await c.req.valid('json')
-      const group = await deleteGroup(body.groupId)
+      const groupId = c.req.param('id')
+      if (!groupId) {
+        return c.json({ error: 'Invalid Group ID' }, 400)
+      }
+      const user = c.get('user') // Dal middleware auth
+
+      const userGroups = await ReserachchByName(user.sub)
+
+      // find  the group to delete among those of the user
+      const groupToDelete = userGroups.find((g: IGroup) =>
+        (g._id as mongoose.Types.ObjectId).toString() === groupId
+      );
+
+      if (!groupToDelete) {
+        return c.json({ error: 'Group not found or you are not a member' }, 404)
+      }
+
+      //verify ownership
+      const ownerId = groupToDelete.owner || groupToDelete.ownerId;
+
+      if (ownerId.toString() !== user.sub) {
+        return c.json({ error: 'Forbidden: Only the owner can delete the group' }, 403)
+      }
+
+
+      await deleteGroup(groupId)
+
 
       await publishGroupEvent({
         type: 'group.deleted',
-        groupId: body.groupId,
+        groupId: groupId,
         payload: {
-          name: group.name,
-          owner: group.owner,
-          members: group.members,
+          name: groupToDelete.name,
+          owner: ownerId,
+          members: groupToDelete.members,
         },
         timestamp: new Date().toISOString(),
       })
-      const user = c.get('user')
-      //update cached count
-      const userGroupsCount = await redisCache.get(`user_groups_count:${user.sub}`);
-      if (!userGroupsCount) {
-        //if not in cache, fetch from DB and set cache
-        const groups = await ReserachchByName(user.sub);
-        const count = groups.length;
-        if (count > 0) { await redisCache.set(`user_groups_count:${user.sub}`, (count - 1).toString(), 'EX', 86400); }
-        else {
-          await redisCache.set(`user_groups_count:${user.sub}`, '0', 'EX', 86400);
-          return c.json({ error: 'not enough groups to delete' }, 400);
-        }
 
-      }
-      const currentCount = userGroupsCount ? parseInt(userGroupsCount) : 0;
-      await redisCache.set(`user_groups_count:${user.sub}`, Math.max(0, currentCount - 1).toString(), 'EX', 86400);
 
-      return c.json(group)
+
+      return c.json({ success: true, message: 'Group deleted successfully' })
+
     } catch (error) {
       console.error(error)
       return c.json({ error: 'Failed to delete group' }, 400)
