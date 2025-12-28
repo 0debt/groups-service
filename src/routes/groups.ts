@@ -6,16 +6,20 @@ import { ReserachchByName } from '../services/services'
 import { getGroupSummary } from '../services/summaryGroup';
 import { circuitBreaker } from '../lib/circuitBreaker';
 import { redisCache } from '../services/services';
+import { PLAN_LIMITS } from '../config/plans';
 import mongoose from 'mongoose';
+import type { AppEnv } from '../types/app';
+import { authMiddleware } from '../middlware/auth';
 
 
 
-export const groupsRoute = new OpenAPIHono()
+
+export const groupsRoute = new OpenAPIHono<AppEnv>()
 
 
 const circuitBreakerInstance = new circuitBreaker(5, 60000);
 
-
+groupsRoute.use('*', authMiddleware);
 
 
 const groupSchema = z.object({
@@ -150,9 +154,35 @@ groupsRoute.openapi(
     },
   },
   async (c) => {
+
+
     try {
+      const user = c.get('user')
       const body = await c.req.valid('json')
+
+      //check plan limits
+      if (!user.plan) {
+        return c.json({ error: 'User plan not found' }, 400);
+      }
+      const limits = PLAN_LIMITS[user.plan as keyof typeof PLAN_LIMITS];
+
+      const userGroupsCount = await redisCache.get(`user_groups_count:${user.sub}`);
+      if (!userGroupsCount) {
+        //if not in cache, fetch from DB and set cache
+        const groups = await ReserachchByName(user.sub);
+        const count = groups.length;
+        await redisCache.set(`user_groups_count:${user.sub}`, count.toString(), 'EX', 86400);
+      }
+      const currentCount = userGroupsCount ? parseInt(userGroupsCount) : 0;
+      if (currentCount >= limits.maxGroups) {
+        return c.json({ error: 'Group creation limit reached for your plan' }, 403);
+      }
+
       const group = await createGroup(body.name, body.owner, body.description || '', body.members)
+      //update cached count
+
+      await redisCache.set(`user_groups_count:${user.sub}`, (currentCount + 1).toString(), 'EX', 86400);
+
       return c.json(group)
     } catch (error) {
       return c.json({ error: 'Failed to create group' }, 400)
@@ -196,6 +226,22 @@ groupsRoute.openapi(
         },
         timestamp: new Date().toISOString(),
       })
+      const user = c.get('user')
+      //update cached count
+      const userGroupsCount = await redisCache.get(`user_groups_count:${user.sub}`);
+      if (!userGroupsCount) {
+        //if not in cache, fetch from DB and set cache
+        const groups = await ReserachchByName(user.sub);
+        const count = groups.length;
+        if (count > 0) { await redisCache.set(`user_groups_count:${user.sub}`, (count - 1).toString(), 'EX', 86400); }
+        else {
+          await redisCache.set(`user_groups_count:${user.sub}`, '0', 'EX', 86400);
+          return c.json({ error: 'not enough groups to delete' }, 400);
+        }
+
+      }
+      const currentCount = userGroupsCount ? parseInt(userGroupsCount) : 0;
+      await redisCache.set(`user_groups_count:${user.sub}`, Math.max(0, currentCount - 1).toString(), 'EX', 86400);
 
       return c.json(group)
     } catch (error) {
@@ -243,6 +289,26 @@ groupsRoute.openapi(
       let memberIdToRemove: string | undefined = undefined
       //First check if we can add a member and resolve the userId
       if (emailToAdd) {
+        const user = c.get('user')
+        //check plan limits
+        if (!user.plan) {
+          return c.json({ error: 'User plan not found' }, 400);
+        }
+
+        const limits = PLAN_LIMITS[user.plan as keyof typeof PLAN_LIMITS];
+        const group = await ReserachchByName(user.sub)
+        const targetGroup = group.find((g: IGroup) => (g._id as mongoose.Types.ObjectId).toString() === body.groupId);
+        if (!targetGroup) {
+          return c.json({ error: 'Group not found' }, 404);
+        }
+        if (targetGroup.ownerId.toString() !== user.sub) {
+          return c.json({ error: 'Only group owner can add members' }, 403);
+        }
+        if (targetGroup.members.length >= limits.maxMembers) {
+          return c.json({ error: 'Member addition limit reached for your plan' }, 403);
+        }
+
+
         if (!circuitBreakerInstance.canRequest()) {
           return c.json({ error: 'Users service is currently unavailable' }, 503)
         }
@@ -334,7 +400,7 @@ groupsRoute.openapi(
         })
       }
 
-      if (memberToRemove) {
+      if (memberIdToRemove) {
         await publishGroupEvent({
           type: 'group.member.removed',
           groupId: body.groupId,
