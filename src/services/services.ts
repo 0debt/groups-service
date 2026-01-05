@@ -122,6 +122,11 @@ export async function deleteGroup(groupId: string) {
   await GroupSummary.deleteOne({ groupId });
   redisCache.del(`group_summary:${groupId}`);
 
+  for (const memberId of group.members) {
+    await redisCache.del(memberId);
+    console.log(`Cache list invalidated for member: ${memberId}`);
+  }
+
   await publishGroupEvent({
     type: "group.deleted",
     groupId,

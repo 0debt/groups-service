@@ -328,7 +328,8 @@ groupsRoute.openapi(
         if (!targetGroup) {
           return c.json({ error: "Group not found" }, 404)
         }
-        if (targetGroup.ownerId.toString() !== user.sub) {
+        const ownerId = targetGroup.owner || targetGroup.ownerId
+        if (ownerId.toString() !== user.sub) {
           return c.json({ error: "Only group owner can add members" }, 403)
         }
         if (targetGroup.members.length >= limits.maxMembers) {
