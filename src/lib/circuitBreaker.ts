@@ -41,28 +41,15 @@ export class circuitBreaker {
         }
         this.failureCount = 0;
     }
-
-
+    
     public canRequest(): boolean {
         if (this.state == 'OPEN' && (Date.now() - this.lastFailureTime) > this.timeout) {
             this.state = 'HALF_OPEN'
             return true
         }
-
-
-
-
         if (this.state == 'CLOSED') {
             return true
         }
-
-
         return false;
     }
-
-
-
-
-
-
 }

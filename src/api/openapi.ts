@@ -14,5 +14,5 @@ api.doc('/openapi.json', {
     servers: [{ url: 'http://localhost:3000/api', description: 'Base delle API' }],
 })
 
-// INTERFACCIA SWAGGER-UI
+//SWAGGER-UI interface
 api.get('/docs', swaggerUI({ url: '/api/openapi.json' }))

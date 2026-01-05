@@ -1,7 +1,6 @@
 import { createApi } from "unsplash-js";
 
 export async function requestPhoto() {
-
     const unsplash = createApi({
         accessKey: process.env.ACCES_KEY_UNSPLASH as string,
         fetch,
@@ -17,8 +16,4 @@ export async function requestPhoto() {
         console.error("Errore nel recuperare la foto da Unsplash:", result.errors);
         return "";
     }
-
-
-
-
 }

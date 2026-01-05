@@ -1,5 +1,4 @@
 import mongoose from 'mongoose';
-import { createApi } from "unsplash-js";
 import { publishGroupEvent } from '../lib/redisPublisher';
 import { circuitBreaker } from '../lib/circuitBreaker';
 import { upsertGroupSummary } from '../services/summaryGroup';
@@ -35,7 +34,7 @@ export const groupSchema = new mongoose.Schema<IGroup>({
 
 
 
-export const circuitBreakerInstance = new circuitBreaker(5, 60000); // threshold di 5 fallimenti, timeout di 60 secondi
+export const circuitBreakerInstance = new circuitBreaker(5, 60000); // threshold of 5 failure, timeout of 60 seconds
 
 export const Group = mongoose.model<IGroup>('Group', groupSchema);
 
@@ -111,9 +110,6 @@ export async function ReserachchByName(memberName: string) {
   }
 }
 
-
-
-//delete = eliminare il gruppo
 export async function deleteGroup(groupId: string) {
 
   const group = await Group.findById(groupId);
@@ -125,8 +121,6 @@ export async function deleteGroup(groupId: string) {
   console.log('Group deleted:', group);
   await GroupSummary.deleteOne({ groupId });
   redisCache.del(`group_summary:${groupId}`);
-
-
 
   await publishGroupEvent({
     type: "group.deleted",
@@ -143,7 +137,6 @@ export async function deleteGroup(groupId: string) {
 }
 
 
-//update = aggiungere o eliminare un membro
 export async function updateGroupMembers(groupId: string, memberToAdd?: string, memberToRemove?: string) {
   const group = await Group.findById(groupId);
   if (!group) {
@@ -154,14 +147,12 @@ export async function updateGroupMembers(groupId: string, memberToAdd?: string, 
   let addedMember: string | undefined;
   let removedMember: string | undefined;
 
-  // Aggiungi un membro
   if (memberToAdd && !group.members.includes(memberToAdd)) {
     group.members.push(memberToAdd);
     modified = true;
     addedMember = memberToAdd;
   }
 
-  // Rimuovi un membro
   if (memberToRemove && group.members.includes(memberToRemove)) {
     group.members = group.members.filter(
       (member: string) => member !== memberToRemove
@@ -180,7 +171,7 @@ export async function updateGroupMembers(groupId: string, memberToAdd?: string, 
   await upsertGroupSummary(group);
 
 
-  // Pubblica eventi su Redis
+  // Pubblication of events on Redis
   if (addedMember) {
     await publishGroupEvent({
       type: "group.member.added",
@@ -258,4 +249,3 @@ export async function updateGroupInfo(
 
   return group;
 }
-
