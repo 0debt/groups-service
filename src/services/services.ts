@@ -148,6 +148,11 @@ export async function updateGroupMembers(groupId: string, memberToAdd?: string, 
     throw new Error("Group not found");
   }
 
+  // Keep track of all members to invalidate (including the one being removed)
+  const membersToInvalidate = new Set([...group.members]);
+  if (memberToAdd) membersToInvalidate.add(memberToAdd);
+  if (memberToRemove) membersToInvalidate.add(memberToRemove);
+
   let modified = false;
   let addedMember: string | undefined;
   let removedMember: string | undefined;
@@ -175,6 +180,11 @@ export async function updateGroupMembers(groupId: string, memberToAdd?: string, 
   console.log("Group updated:", group);
   await upsertGroupSummary(group);
 
+  // Invalidate cache for all involved members so they see the updated member count
+  for (const memberId of membersToInvalidate) {
+    await redisCache.del(memberId);
+    console.log(`Cache invalidated for member after update: ${memberId}`);
+  }
 
   // Pubblication of events on Redis
   if (addedMember) {
