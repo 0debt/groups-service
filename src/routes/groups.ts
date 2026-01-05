@@ -1,4 +1,3 @@
-// routes/groups.ts
 import { OpenAPIHono, z } from "@hono/zod-openapi"
 import {
   createGroup,
@@ -21,10 +20,9 @@ export const groupsRoute = new OpenAPIHono<AppEnv>()
 
 const circuitBreakerInstance = new circuitBreaker(5, 60000)
 
-// ✅ protezione su tutte le routes
 groupsRoute.use("*", authMiddleware)
 
-// ✅ Schema corretto per creazione: il client manda SOLO name + description opzionale
+//client send name + optionalq description
 const groupSchema = z.object({
   name: z.string(),
   description: z.string().optional(),
@@ -141,68 +139,76 @@ groupsRoute.openapi(
 
 groupsRoute.openapi(
   {
-    method: 'post',
-    path: '/creation',
-    summary: 'Creation of a group',
+    method: "post",
+    path: "/",
+    summary: "Create a group",
     request: {
       body: {
         content: {
-          'application/json': {
-            schema: groupSchema,
+          "application/json": {
+            schema: groupSchema, // { name: string, description?: string }
           },
         },
       },
     },
     responses: {
-      200: { description: 'Group correctly created' },
-      400: { description: 'Error on the creation of the group' },
-      403: { description: 'Plan limit reached' },
+      201: { description: "Group created" },
+      400: { description: "Error on group creation" },
+      403: { description: "Plan limit reached" },
     },
   },
   async (c) => {
     try {
-      const user = c.get('user') // authMiddleware
-      const body = await c.req.valid('json')
+      const user = c.get("user") // authMiddleware
+      const body = await c.req.valid("json")
 
-      // owner e members li prendiamo dal JWT
       const owner = user.sub
       const members = [user.sub]
 
-      // check plan limits
       if (!user.plan) {
-        return c.json({ error: 'User plan not found' }, 400)
+        return c.json({ error: "User plan not found" }, 400)
       }
       const limits = PLAN_LIMITS[user.plan as keyof typeof PLAN_LIMITS]
 
       const cachedCount = await redisCache.get(`user_groups_count:${user.sub}`)
-      let currentCount = cachedCount ? parseInt(cachedCount) : 0
+      let currentCount = cachedCount ? parseInt(cachedCount, 10) : 0
 
       if (!cachedCount) {
         const groups = await ReserachchByName(user.sub)
         currentCount = groups.length
-        await redisCache.set(`user_groups_count:${user.sub}`, currentCount.toString(), 'EX', 86400)
+        await redisCache.set(
+          `user_groups_count:${user.sub}`,
+          currentCount.toString(),
+          "EX",
+          86400
+        )
       }
 
       if (currentCount >= limits.maxGroups) {
-        return c.json({ error: 'Group creation limit reached for your plan' }, 403)
+        return c.json({ error: "Group creation limit reached for your plan" }, 403)
       }
 
       const group = await createGroup(
         body.name,
         owner,
-        body.description || '',
+        body.description || "",
         members
       )
 
-      await redisCache.set(`user_groups_count:${user.sub}`, (currentCount + 1).toString(), 'EX', 86400)
+      await redisCache.set(
+        `user_groups_count:${user.sub}`,
+        (currentCount + 1).toString(),
+        "EX",
+        86400
+      )
 
-      return c.json(group, 200)
+      return c.json(group, 201)
     } catch (error) {
-      return c.json({ error: 'Failed to create group' }, 400)
+      console.error(error)
+      return c.json({ error: "Failed to create group" }, 400)
     }
   }
 )
-
 
 
 groupsRoute.openapi(
@@ -281,8 +287,8 @@ groupsRoute.openapi(
             schema: z.object({
               groupId: z.string(),
               members: z.tuple([
-                z.string().optional(), // email del membro da aggiungere
-                z.string().optional(), // userId del membro da rimuovere
+                z.string().optional(), // email of the users that we want to add
+                z.string().optional(), // email of the users that we want to remove
               ]),
             }),
           },
@@ -374,7 +380,6 @@ groupsRoute.openapi(
         }
       }
 
-      // Remove: (qui tu stai usando email->id, ok, lascio uguale al tuo)
       if (memberToRemove) {
         if (!circuitBreakerInstance.canRequest()) {
           return c.json(
@@ -467,15 +472,19 @@ groupsRoute.openapi(
 
 groupsRoute.openapi(
   {
-    method: "post",
-    path: "/updateDetails",
-    summary: "Modify a detail (name or description) of a group",
+    method: "patch",
+    path: "/{groupId}",
+    summary: "Update group name or description",
     request: {
+      params: z.object({
+        groupId: z.string().openapi({
+          description: "ID of the group to update",
+        }),
+      }),
       body: {
         content: {
           "application/json": {
             schema: z.object({
-              groupId: z.string(),
               name: z.string().optional(),
               description: z.string().optional(),
             }),
@@ -484,60 +493,98 @@ groupsRoute.openapi(
       },
     },
     responses: {
-      200: { description: "Detail of the group modified correctly" },
-      400: { description: "Error on modifying a detail of the group" },
+      200: { description: "Group updated successfully" },
+      400: { description: "Invalid request" },
+      403: { description: "Forbidden: only owner can update the group" },
+      404: { description: "Group not found" },
     },
   },
   async (c) => {
     try {
-      const body = await c.req.valid("json")
-      const groupId = body.groupId
-      const name = body.name
-      const description = body.description
+      const { groupId } = c.req.valid("param")
+      const { name, description } = c.req.valid("json")
 
-      const group = await updateGroupInfo(groupId, name, description)
+      const user = c.get("user")
+
+      // Recupero gruppi dell'utente
+      const userGroups = await ReserachchByName(user.sub)
+
+      const targetGroup = userGroups.find(
+        (g: IGroup) =>
+          (g._id as mongoose.Types.ObjectId).toString() === groupId
+      )
+
+      if (!targetGroup) {
+        return c.json({ error: "Group not found" }, 404)
+      }
+
+      const ownerId = targetGroup.owner || targetGroup.ownerId
+      if (ownerId.toString() !== user.sub) {
+        return c.json(
+          { error: "Forbidden: only the owner can update the group" },
+          403
+        )
+      }
+
+      if (!name && !description) {
+        return c.json(
+          { error: "At least one field (name or description) must be provided" },
+          400
+        )
+      }
+
+      const updatedGroup = await updateGroupInfo(
+        groupId,
+        name,
+        description
+      )
 
       await publishGroupEvent({
         type: "group.updated",
         groupId,
         payload: {
-          name: group.name,
-          description: group.description,
+          name: updatedGroup.name,
+          description: updatedGroup.description,
         },
         timestamp: new Date().toISOString(),
       })
 
-      return c.json(group)
+      return c.json(updatedGroup, 200)
     } catch (error) {
       console.error(error)
-      return c.json({ error: "Failed to modify a detail of a group" }, 400)
+      return c.json({ error: "Failed to update group" }, 400)
     }
   }
 )
 
 groupsRoute.openapi(
   {
-    method: 'get',
-    path: '/visualization',
-    summary: 'Get groups for authenticated user (or by name)',
+    method: "get",
+    path: "/",
+    summary: "Get groups for authenticated user (or by memberId)",
     request: {
       query: z.object({
-        name: z.string().optional().openapi({ description: 'Member id (optional)' }),
+        memberId: z
+          .string()
+          .optional()
+          .openapi({ description: "Member id (optional, defaults to authenticated user id)" }),
       }),
     },
     responses: {
-      200: { description: 'Groups fetched correctly' },
-      400: { description: 'Error fetching groups' },
+      200: { description: "Groups fetched successfully" },
+      400: { description: "Error fetching groups" },
     },
   },
   async (c) => {
     try {
-      const user = c.get('user')
-      const name = c.req.query('name') || user.sub  // <-- QUI la fix
-      const groups = await ReserachchByName(name)
+      const user = c.get("user")
+      const memberId = c.req.query("memberId") || user.sub
+
+      const groups = await ReserachchByName(memberId)
       return c.json(groups, 200)
     } catch (error) {
-      return c.json({ error: 'Failed to get groups' }, 400)
+      console.error(error)
+      return c.json({ error: "Failed to get groups" }, 400)
     }
   }
 )
