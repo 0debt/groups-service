@@ -193,6 +193,7 @@ export async function updateGroupMembers(groupId: string, memberToAdd?: string, 
       groupId,
       payload: {
         member: addedMember,
+        groupName: group.name,
         members: group.members,
       },
       timestamp: new Date().toISOString(),

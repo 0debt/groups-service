@@ -442,6 +442,7 @@ groupsRoute.openapi(
           payload: {
             memberId: memberIdToAdd,
             email: emailToAdd,
+            groupName: group.name,
             members: group.members,
           },
           timestamp: new Date().toISOString(),
